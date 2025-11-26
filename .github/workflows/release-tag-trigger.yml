@@ -47,7 +47,7 @@ jobs:
             --project-name "${{ steps.project.outputs.project_name }}" \
             --source-version "${{ steps.tag.outputs.tag_name }}" \
             --environment-variables-override \
-              name=CODEBUILD_WEBHOOK_TRIGGER,value=tag/${{ steps.tag.outputs.tag_name }},type=PLAINTEXT \
+              name=WEBHOOK_TRIGGER,value=tag/${{ steps.tag.outputs.tag_name }},type=PLAINTEXT \
             --query 'build.id' \
             --output text)
           
