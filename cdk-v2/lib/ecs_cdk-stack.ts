@@ -155,10 +155,10 @@ export class EcsCdkStack extends cdk.Stack {
           pre_build: {
             commands: [
               'env',
-              'echo "CODEBUILD_WEBHOOK_TRIGGER = ${CODEBUILD_WEBHOOK_TRIGGER}"',
+              'echo "WEBHOOK_TRIGGER = ${WEBHOOK_TRIGGER}"',
               'echo "CODEBUILD_SOURCE_VERSION = ${CODEBUILD_SOURCE_VERSION}"',
-              // Extract tag name from webhook trigger (e.g., "tag/release-v1.0.0" -> "release-v1.0.0")
-              'if [ -n "$CODEBUILD_WEBHOOK_TRIGGER" ]; then export tag=$(echo $CODEBUILD_WEBHOOK_TRIGGER | sed "s/tag\\///"); else export tag=latest; fi',
+              // Extract tag name from environment variable (passed from GitHub Actions)
+              'if [ -n "$WEBHOOK_TRIGGER" ]; then export tag=$WEBHOOK_TRIGGER; else export tag=latest; fi',
               'echo "Using Docker tag: $tag"'
             ]
           },
@@ -178,11 +178,7 @@ export class EcsCdkStack extends cdk.Stack {
               'echo "in post-build stage"',
               'cd ..',
               "printf '[{\"name\":\"flask-app\",\"imageUri\":\"%s\"}]' $ecr_repo_uri:$tag > imagedefinitions.json",
-              "pwd; ls -al; cat imagedefinitions.json",
-              // Start the pipeline execution
-              'echo "Starting pipeline execution..."',
-              'PIPELINE_NAME=$(aws codepipeline list-pipelines --query "pipelineList[?contains(name, \'myecspipeline\')].name" --output text)',
-              'if [ -n "$PIPELINE_NAME" ]; then aws codepipeline start-pipeline-execution --name $PIPELINE_NAME; fi'
+              "pwd; ls -al; cat imagedefinitions.json"
             ]
           }
         },
@@ -266,14 +262,6 @@ export class EcsCdkStack extends cdk.Stack {
         "ecr:getdownloadurlforlayer"
       ],
       resources: [`${cluster.clusterArn}`],
-    }));
-
-    // Grant CodeBuild permission to start pipeline execution
-    project.addToRolePolicy(new iam.PolicyStatement({
-      actions: [
-        "codepipeline:StartPipelineExecution"
-      ],
-      resources: [pipeline.pipelineArn],
     }));
 
 

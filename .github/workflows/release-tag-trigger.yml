@@ -6,7 +6,7 @@ on:
       - 'release*'  # release で始まるすべてのタグ
 
 jobs:
-  trigger-codebuild:
+  trigger-pipeline:
     runs-on: ubuntu-latest
     
     steps:
@@ -24,46 +24,30 @@ jobs:
           echo "tag_name=$TAG_NAME" >> $GITHUB_OUTPUT
           echo "Triggered by tag: $TAG_NAME"
       
-      - name: Get CodeBuild project name
-        id: project
+      - name: Start CodePipeline
         run: |
-          # プロジェクト名を取得（スタック名の一部を含む）
-          PROJECT_NAME=$(aws codebuild list-projects --query "projects[?contains(@, 'EcsCdkStack')]" --output text | head -n1)
-          
-          if [ -z "$PROJECT_NAME" ]; then
-            echo "❌ CodeBuild project not found"
-            exit 1
-          fi
-          
-          echo "project_name=$PROJECT_NAME" >> $GITHUB_OUTPUT
-          echo "Found CodeBuild project: $PROJECT_NAME"
-      
-      - name: Start CodeBuild
-        run: |
-          echo "Starting CodeBuild project: ${{ steps.project.outputs.project_name }}"
+          echo "Starting CodePipeline: EcsCdkStack-myecspipeline0F854920-HnGkJ927SuEH"
           echo "With tag: ${{ steps.tag.outputs.tag_name }}"
           
-          BUILD_ID=$(aws codebuild start-build \
-            --project-name "${{ steps.project.outputs.project_name }}" \
-            --source-version "${{ steps.tag.outputs.tag_name }}" \
-            --environment-variables-override \
-              name=WEBHOOK_TRIGGER,value=tag/${{ steps.tag.outputs.tag_name }},type=PLAINTEXT \
-            --query 'build.id' \
+          EXECUTION_ID=$(aws codepipeline start-pipeline-execution \
+            --name EcsCdkStack-myecspipeline0F854920-HnGkJ927SuEH \
+            --region ap-northeast-1 \
+            --query 'pipelineExecutionId' \
             --output text)
           
-          echo "✅ CodeBuild started successfully!"
-          echo "Build ID: $BUILD_ID"
-          echo "You can monitor the build at:"
-          echo "https://ap-northeast-1.console.aws.amazon.com/codesuite/codebuild/projects/${{ steps.project.outputs.project_name }}/build/$BUILD_ID"
+          echo "✅ CodePipeline started successfully!"
+          echo "Execution ID: $EXECUTION_ID"
+          echo "You can monitor the pipeline at:"
+          echo "https://ap-northeast-1.console.aws.amazon.com/codesuite/codepipeline/pipelines/EcsCdkStack-myecspipeline0F854920-HnGkJ927SuEH/executions"
       
       - name: Summary
         run: |
           echo "## 🚀 Release Tag Deployment Triggered" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Tag:** \`${{ steps.tag.outputs.tag_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**CodeBuild Project:** \`${{ steps.project.outputs.project_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Pipeline:** \`EcsCdkStack-myecspipeline0F854920-HnGkJ927SuEH\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Next Steps:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Monitor the CodeBuild execution in AWS Console" >> $GITHUB_STEP_SUMMARY
-          echo "2. Approve the deployment in CodePipeline" >> $GITHUB_STEP_SUMMARY
+          echo "1. Monitor the CodePipeline execution in AWS Console" >> $GITHUB_STEP_SUMMARY
+          echo "2. Approve the deployment when prompted" >> $GITHUB_STEP_SUMMARY
           echo "3. Verify the deployment on ECS Fargate" >> $GITHUB_STEP_SUMMARY
