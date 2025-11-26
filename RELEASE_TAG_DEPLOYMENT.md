@@ -2,13 +2,68 @@
 
 ## 概要
 
-このプロジェクトは、GitHubに「release」で始まるタグをプッシュすると、自動的にCI/CDパイプラインが起動するように設定されています。
+このプロジェクトは、GitHubに「release」で始まるタグをプッシュすると、GitHub Actionsを通じて自動的にCI/CDパイプラインが起動するように設定されています。
 
-## 🎯 主な変更点
+## 🔧 初回セットアップ（重要）
 
-### 1. CodeBuild Webhook設定
-- GitHubのwebhookを有効化
-- `release.*`パターンのタグがプッシュされた時のみビルドをトリガー
+GitHub Actionsを動作させるために、GitHubリポジトリにAWS認証情報を設定する必要があります。
+
+### 1. AWS IAM ユーザーの作成（既存のユーザーを使用する場合はスキップ）
+
+AWS IAMコンソールで、CodeBuild起動権限を持つユーザーを作成します。
+
+必要な権限:
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "codebuild:ListProjects",
+        "codebuild:StartBuild",
+        "codebuild:BatchGetBuilds"
+      ],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+### 2. アクセスキーの作成
+
+1. AWS IAMコンソールで上記ユーザーを選択
+2. 「セキュリティ認証情報」タブを開く
+3. 「アクセスキーを作成」をクリック
+4. **Access Key ID**と**Secret Access Key**をメモ（後で表示できません）
+
+### 3. GitHub Secretsの設定
+
+1. GitHubリポジトリページを開く
+2. **Settings** → **Secrets and variables** → **Actions** に移動
+3. **New repository secret** をクリックして以下を追加:
+
+| Secret名 | 値 |
+|---------|-----|
+| `AWS_ACCESS_KEY_ID` | AWSアクセスキーID |
+| `AWS_SECRET_ACCESS_KEY` | AWSシークレットアクセスキー |
+
+### 4. セットアップ完了の確認
+
+以下のコマンドで動作確認:
+```bash
+git tag release-test-v1.0.0
+git push origin release-test-v1.0.0
+```
+
+GitHubの **Actions** タブで、ワークフローが起動していることを確認してください。
+
+## 🎯 主な仕組み
+
+### 1. GitHub Actions Workflow
+- `.github/workflows/release-tag-trigger.yml`に定義
+- `release`で始まるタグがプッシュされた時のみワークフローをトリガー
+- AWS CLIを使用してCodeBuildプロジェクトを起動
 - 通常のコミット（main ブランチへのpush等）ではビルドは**トリガーされません**
 
 ### 2. Docker Image Tagging
@@ -19,7 +74,8 @@
 ### 3. パイプライン実行フロー
 ```
 GitHub Tag Push (release-*) 
-  → CodeBuild Webhook トリガー
+  → GitHub Actions Workflow 起動
+  → AWS CodeBuild プロジェクト起動
   → Docker イメージビルド & ECR Push
   → CodePipeline 起動
   → 手動承認待ち
@@ -48,8 +104,9 @@ git push origin release-v1.0.0
 ```
 
 #### 3. 自動でパイプラインが起動
-- CodeBuildが自動的にトリガーされます
-- AWSコンソールのCodeBuildで進捗を確認できます
+- GitHub Actionsが自動的に起動し、CodeBuildをトリガーします
+- GitHubの **Actions** タブでワークフローの進捗を確認
+- AWSコンソールのCodeBuildでビルドの進捗を確認できます
 
 #### 4. 手動承認を実施
 - CodePipelineの「approve」ステージで手動承認が必要です
@@ -89,11 +146,28 @@ git push origin release-v1.0.0
    git ls-remote --tags origin  # リモートのタグ一覧を表示
    ```
 
-3. CodeBuildのWebhook設定を確認
-   - AWS Console → CodeBuild → プロジェクト → Webhooks で設定を確認
+3. GitHub Actionsのワークフローを確認
+   - GitHubリポジトリの **Actions** タブでワークフローの実行状況を確認
+   - エラーが発生している場合、ログを確認
 
-4. GitHub Personal Access Tokenの権限を確認
-   - `admin:repo_hook` 権限が必要です
+4. GitHub Secretsが正しく設定されているか確認
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+   
+5. IAMユーザーの権限を確認
+   - CodeBuild起動に必要な権限（`codebuild:StartBuild`等）があるか確認
+
+### GitHub Actionsは成功したがCodeBuildが起動しない
+
+**確認事項:**
+1. IAM権限の確認
+   ```bash
+   aws codebuild list-projects
+   ```
+   このコマンドが成功するか確認
+
+2. CodeBuildプロジェクト名の確認
+   - ワークフローログで正しいプロジェクト名が検出されているか確認
 
 ### CodeBuildは起動したがパイプラインが起動しない
 
