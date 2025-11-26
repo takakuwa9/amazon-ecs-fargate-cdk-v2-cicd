@@ -129,13 +129,6 @@ export class EcsCdkStack extends cdk.Stack {
     const gitHubSource = codebuild.Source.gitHub({
       owner: githubUserName.valueAsString,
       repo: githubRepository.valueAsString,
-      webhook: true, // Enable webhook to trigger on tag push
-      webhookFilters: [
-        // Filter for tag push events where tag name starts with 'release'
-        codebuild.FilterGroup.inEventOf(
-          codebuild.EventAction.PUSH
-        ).andTagIs('release.*'),
-      ],
     });
 
     // codebuild - project
