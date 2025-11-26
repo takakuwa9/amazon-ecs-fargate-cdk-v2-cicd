@@ -129,10 +129,13 @@ export class EcsCdkStack extends cdk.Stack {
     const gitHubSource = codebuild.Source.gitHub({
       owner: githubUserName.valueAsString,
       repo: githubRepository.valueAsString,
-      webhook: false, // optional, default: true if `webhookfilteres` were provided, false otherwise
-      //webhookFilters: [
-      //  codebuild.FilterGroup.inEventOf(codebuild.EventAction.PUSH).andBranchIs('main'),
-      //], // optional, by default all pushes and pull requests will trigger a build
+      webhook: true, // Enable webhook to trigger on tag push
+      webhookFilters: [
+        // Filter for tag push events where tag name starts with 'release'
+        codebuild.FilterGroup.inEventOf(
+          codebuild.EventAction.PUSH
+        ).andTagIs('release.*'),
+      ],
     });
 
     // codebuild - project
@@ -157,15 +160,13 @@ export class EcsCdkStack extends cdk.Stack {
         version: "0.2",
         phases: {
           pre_build: {
-            /*
             commands: [
               'env',
-              'export tag=${CODEBUILD_RESOLVED_SOURCE_VERSION}'
-            ]
-            */
-            commands: [
-              'env',
-              'export tag=latest'
+              'echo "CODEBUILD_WEBHOOK_TRIGGER = ${CODEBUILD_WEBHOOK_TRIGGER}"',
+              'echo "CODEBUILD_SOURCE_VERSION = ${CODEBUILD_SOURCE_VERSION}"',
+              // Extract tag name from webhook trigger (e.g., "tag/release-v1.0.0" -> "release-v1.0.0")
+              'if [ -n "$CODEBUILD_WEBHOOK_TRIGGER" ]; then export tag=$(echo $CODEBUILD_WEBHOOK_TRIGGER | sed "s/tag\\///"); else export tag=latest; fi',
+              'echo "Using Docker tag: $tag"'
             ]
           },
           build: {
@@ -173,7 +174,10 @@ export class EcsCdkStack extends cdk.Stack {
               'cd flask-docker-app',
               `docker build -t $ecr_repo_uri:$tag .`,
               '$(aws ecr get-login --no-include-email)',
-              'docker push $ecr_repo_uri:$tag'
+              'docker push $ecr_repo_uri:$tag',
+              // Also push as 'latest' for convenience
+              `docker tag $ecr_repo_uri:$tag $ecr_repo_uri:latest`,
+              'docker push $ecr_repo_uri:latest'
             ]
           },
           post_build: {
@@ -181,7 +185,11 @@ export class EcsCdkStack extends cdk.Stack {
               'echo "in post-build stage"',
               'cd ..',
               "printf '[{\"name\":\"flask-app\",\"imageUri\":\"%s\"}]' $ecr_repo_uri:$tag > imagedefinitions.json",
-              "pwd; ls -al; cat imagedefinitions.json"
+              "pwd; ls -al; cat imagedefinitions.json",
+              // Start the pipeline execution
+              'echo "Starting pipeline execution..."',
+              'PIPELINE_NAME=$(aws codepipeline list-pipelines --query "pipelineList[?contains(name, \'myecspipeline\')].name" --output text)',
+              'if [ -n "$PIPELINE_NAME" ]; then aws codepipeline start-pipeline-execution --name $PIPELINE_NAME; fi'
             ]
           }
         },
@@ -206,7 +214,8 @@ export class EcsCdkStack extends cdk.Stack {
       repo: githubRepository.valueAsString,
       branch: 'main',
       oauthToken: cdk.SecretValue.secretsManager(nameOfGithubPersonTokenParameterAsString),
-      output: sourceOutput
+      output: sourceOutput,
+      trigger: codepipeline_actions.GitHubTrigger.NONE // Disable automatic trigger, use webhook instead
     });
 
     const buildAction = new codepipeline_actions.CodeBuildAction({
@@ -232,7 +241,7 @@ export class EcsCdkStack extends cdk.Stack {
 
 
     // NOTE - Approve action is commented out!
-    new codepipeline.Pipeline(this, 'myecspipeline', {
+    const pipeline = new codepipeline.Pipeline(this, 'myecspipeline', {
       stages: [
         {
           stageName: 'source',
@@ -266,9 +275,18 @@ export class EcsCdkStack extends cdk.Stack {
       resources: [`${cluster.clusterArn}`],
     }));
 
+    // Grant CodeBuild permission to start pipeline execution
+    project.addToRolePolicy(new iam.PolicyStatement({
+      actions: [
+        "codepipeline:StartPipelineExecution"
+      ],
+      resources: [pipeline.pipelineArn],
+    }));
+
 
     new cdk.CfnOutput(this, "image", { value: ecrRepo.repositoryUri + ":latest" })
     new cdk.CfnOutput(this, 'loadbalancerdns', { value: fargateService.loadBalancer.loadBalancerDnsName });
+    new cdk.CfnOutput(this, 'pipelinename', { value: pipeline.pipelineName });
   }
 
 

@@ -184,12 +184,30 @@ Once code commited and CodePipeline is kicked off, it will deploy the applicatio
 <img src="images/stage12-green.png" alt="dashboard" style="border:1px solid black">
 <img src="images/stage34-green.png" alt="dashboard" style="border:1px solid black">
 
+## Release Tag Deployment (New Feature!)
+
+This project now supports **tag-based deployments**. Instead of triggering the pipeline on every commit, you can control deployments by pushing GitHub tags that start with `release`.
+
+### How to Deploy with Tags
+
+1. Make your code changes and commit them:
+   ```bash
+   git add .
+   git commit -m "Add new feature"
+   git push origin main
+   ```
+
+2. Create and push a release tag:
+   ```bash
+   git tag release-v1.0.0
+   git push origin release-v1.0.0
+   ```
+
+3. The pipeline will automatically trigger and deploy your application!
+
+For detailed information, see [RELEASE_TAG_DEPLOYMENT.md](RELEASE_TAG_DEPLOYMENT.md).
+
 ## Next steps
 
 Once your stack is deployed you are able to quick iterate on code changes, which
 will automatically build and stage a new version. Once approved, the version
-is pushed live.
-
-
-## License
-This library is licensed under the MIT-0 License. See the [LICENSE](/LICENSE) file.
