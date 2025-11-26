@@ -90,12 +90,12 @@ export class EcsCdkStack extends cdk.Stack {
 
     taskDef.addToExecutionRolePolicy(executionRolePolicy);
 
-    const baseImage = 'public.ecr.aws/amazonlinux/amazonlinux:2022'
+    const baseImage = '218795110176.dkr.ecr.ap-northeast-1.amazonaws.com/ecscdkstack-ecrrepo714fb1b2-ible1xhoj9o3'
     const container = taskDef.addContainer('flask-app', {
       image: ecs.ContainerImage.fromRegistry(baseImage),
       memoryLimitMiB: 256,
       cpu: 256,
-      logging
+      logging,
     });
 
     container.addPortMappings({
@@ -108,7 +108,8 @@ export class EcsCdkStack extends cdk.Stack {
       taskDefinition: taskDef,
       publicLoadBalancer: true,
       desiredCount: 1,
-      listenerPort: 80
+      listenerPort: 80,
+      assignPublicIp: true
     });
 
 
@@ -128,10 +129,10 @@ export class EcsCdkStack extends cdk.Stack {
     const gitHubSource = codebuild.Source.gitHub({
       owner: githubUserName.valueAsString,
       repo: githubRepository.valueAsString,
-      webhook: true, // optional, default: true if `webhookfilteres` were provided, false otherwise
-      webhookFilters: [
-        codebuild.FilterGroup.inEventOf(codebuild.EventAction.PUSH).andBranchIs('main'),
-      ], // optional, by default all pushes and pull requests will trigger a build
+      webhook: false, // optional, default: true if `webhookfilteres` were provided, false otherwise
+      //webhookFilters: [
+      //  codebuild.FilterGroup.inEventOf(codebuild.EventAction.PUSH).andBranchIs('main'),
+      //], // optional, by default all pushes and pull requests will trigger a build
     });
 
     // codebuild - project
